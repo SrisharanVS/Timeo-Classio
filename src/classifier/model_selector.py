@@ -14,6 +14,8 @@ from src.features.extractor import TimeSeriesFeatureExtractor
 from src.forecasting.models import ModelFactory, ARIMAModel, ExponentialSmoothingModel, SimpleMovingAverageModel, ProphetModel
 from src.classifier.models import MAPEPredictor
 
+from huggingface_hub import hf_hub_download
+
 class ModelSelector:
     def __init__(self, models_dir="models"):
         self.models_dir = models_dir
@@ -59,8 +61,21 @@ class ModelSelector:
         # Load pre-trained forecasting models
         for model_name in [m.name.lower() for m in ModelFactory.get_all_models()]:
             model_path = os.path.join(self.models_dir, f"{model_name}_model.joblib")
-            if os.path.exists(model_path):
+            model_filename = f"{model_name}_model.joblib"
+            try:
+                model_path = hf_hub_download(
+                    repo_id="SrisharanVS/genies",        # Your Hugging Face username/repository name
+                    filename=model_filename      # File name in the repository
+                )
+                
+                # Load the model
                 self.forecasting_models[model_name] = joblib.load(model_path)
+                print(f"Loaded model: {model_name}")
+
+            except Exception as e:
+                print(f"Error loading model {model_name}: {str(e)}")
+            # if os.path.exists(model_path):
+            #     self.forecasting_models[model_name] = joblib.load(model_path)
     
     def prepare_training_data(self, time_series_data: list, test_size: float = 0.2):
         """
@@ -118,7 +133,6 @@ class ModelSelector:
                 predictions = model.predict(len(test_data))
                 
                 # Calculate MAPE using sklearn
-                # Filter out zeros from test_data to avoid division by zero
                 mask = np.abs(test_data) > 1e-10
                 if np.any(mask):
                     test_filtered = test_data[mask]
@@ -158,8 +172,6 @@ class ModelSelector:
     def select_model(self, time_series: np.ndarray) -> Tuple[str, float]:
         """
         Select the best model for a given time series
-        Returns:
-            tuple: (best_model_name, predicted_mape)
         """
         # Preprocess time series to handle NaN values
         time_series = np.asarray(time_series)
@@ -175,7 +187,7 @@ class ModelSelector:
             if ts_cleaned.isna().sum() > 0:
                 ts_cleaned = ts_cleaned.interpolate(method='linear', limit_direction='both')
             
-            # Last resort: fill with mean or zero
+            # fill with mean or zero
             if ts_cleaned.isna().sum() > 0:
                 mean_val = ts_cleaned.mean()
                 if pd.isna(mean_val):
