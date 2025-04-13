@@ -154,12 +154,12 @@ The project is structured into several key components:
 
 1. Generate the dataset for neural network training:
    ```bash
-   python -m src.features.dataset_creator
+   python -c "from src.features.dataset_creator import main; main()"
    ```
 
 2. Train the model selector:
    ```bash
-   python -m src.classifier.train_model_selector data/dataset.csv
+   python src/classifier/train_model_selector.py data/dataset.csv --models-dir models
    ```
 
 ## API Documentation
@@ -377,3 +377,4 @@ The classifier's performance is evaluated using:
 - Model selection accuracy
 - MAPE prediction error
 - Cross-validation scores
+
