@@ -1,5 +1,14 @@
 # Time Series Forecasting System
 
+## DEMO
+
+![image](https://github.com/user-attachments/assets/677e8245-fd38-4a80-afaf-962fea84c078)
+
+![image](https://github.com/user-attachments/assets/7e91df0c-d0a1-47c5-b693-5896539e7ec3)
+
+
+
+
 ## How the Classifier Was Trained: My Perspective
 
 ### The Challenge
