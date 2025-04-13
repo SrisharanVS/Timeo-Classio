@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Series Predictor</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="/static/styles.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-8 text-gray-800">Time Series Predictor</h1>
+        
+        <!-- File Upload Section -->
+        <div class="max-w-xl mx-auto bg-white rounded-lg shadow-md p-6 mb-8">
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="file">
+                    Upload Time Series CSV
+                </label>
+                <div class="flex items-center justify-center w-full">
+                    <label class="w-full flex flex-col items-center px-4 py-6 bg-white rounded-lg shadow-lg tracking-wide border border-blue-500 cursor-pointer hover:bg-blue-500 hover:text-white file-upload-container">
+                        <svg class="w-8 h-8" fill="currentColor" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                            <path d="M16.88 9.1A4 4 0 0 1 16 17H5a5 5 0 0 1-1-9.9V7a3 3 0 0 1 4.52-2.59A4.98 4.98 0 0 1 17 8c0 .38-.04.74-.12 1.1zM11 11h3l-4-4-4 4h3v3h2v-3z" />
+                        </svg>
+                        <span class="mt-2 text-base">Select a CSV file</span>
+                        <input type="file" class="hidden" id="file" accept=".csv" />
+                    </label>
+                </div>
+            </div>
+            <div id="uploadStatus" class="text-center text-sm text-gray-600"></div>
+            <div id="loadingSpinner" class="spinner hidden"></div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="max-w-4xl mx-auto bg-white rounded-lg shadow-md p-6 hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Model Info -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Model Information</h2>
+                    <div class="space-y-2">
+                        <p class="text-gray-600">
+                            <span class="font-medium">Selected Model:</span>
+                            <span id="modelName" class="text-blue-600"></span>
+                        </p>
+                        <p class="text-gray-600">
+                            <span class="font-medium">Predicted MAPE:</span>
+                            <span id="predictedMape" class="text-blue-600"></span>
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Predictions -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h2 class="text-xl font-semibold mb-4 text-gray-800">Predictions</h2>
+                    <div class="space-y-2">
+                        <p class="text-gray-600 font-medium">Last 5 Values:</p>
+                        <div id="lastValues" class="text-sm text-gray-600"></div>
+                        <p class="text-gray-600 font-medium mt-4">Next 10 Predictions:</p>
+                        <div id="predictions" class="text-sm text-gray-600"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="mt-8 chart-container">
+                <canvas id="predictionChart" class="w-full"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+
+        document.getElementById('file').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const statusDiv = document.getElementById('uploadStatus');
+            const spinner = document.getElementById('loadingSpinner');
+            
+            statusDiv.textContent = 'Uploading...';
+            statusDiv.className = 'text-center text-sm text-blue-600';
+            spinner.classList.remove('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Upload failed');
+                }
+
+                const data = await response.json();
+                displayResults(data);
+                statusDiv.textContent = 'Upload successful!';
+                statusDiv.className = 'text-center text-sm text-green-600';
+            } catch (error) {
+                statusDiv.textContent = `Error: ${error.message}`;
+                statusDiv.className = 'text-center text-sm text-red-600';
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        });
+
+        function displayResults(data) {
+            // Show results section
+            document.getElementById('results').classList.remove('hidden');
+
+            // Update model info
+            document.getElementById('modelName').textContent = data.model_name;
+            document.getElementById('predictedMape').textContent = 
+                `${(data.predicted_mape * 100).toFixed(2)}%`;
+
+            // Update last values
+            const lastValuesHtml = data.last_values
+                .map((value, i) => `t-${5-i}: ${value.toLocaleString()}`)
+                .join('<br>');
+            document.getElementById('lastValues').innerHTML = lastValuesHtml;
+
+            // Update predictions
+            const predictionsHtml = data.predictions
+                .map((value, i) => `t+${i+1}: ${value.toLocaleString()}`)
+                .join('<br>');
+            document.getElementById('predictions').innerHTML = predictionsHtml;
+
+            // Update chart
+            updateChart(data.last_values, data.predictions);
+        }
+
+        function updateChart(lastValues, predictions) {
+            const ctx = document.getElementById('predictionChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (chart) {
+                chart.destroy();
+            }
+
+            // Prepare data
+            const labels = [
+                ...Array(lastValues.length).fill().map((_, i) => `t-${lastValues.length-i}`),
+                ...Array(predictions.length).fill().map((_, i) => `t+${i+1}`)
+            ];
+            
+            const values = [...lastValues, ...predictions];
+            const colors = [
+                ...Array(lastValues.length).fill('rgb(59, 130, 246)'),
+                ...Array(predictions.length).fill('rgb(16, 185, 129)')
+            ];
+
+            // Create new chart
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Time Series Values',
+                        data: values,
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        pointBackgroundColor: colors,
+                        pointBorderColor: colors,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Time Series and Predictions'
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html> 
