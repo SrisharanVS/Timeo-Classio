@@ -10,6 +10,10 @@ import io
 from typing import List, Dict
 import sys
 import os
+import logging 
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Add the project root to Python path
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -108,74 +112,66 @@ async def index(request: Request):
 async def predict(file: UploadFile = File(...), test_size: float = 0.2) -> Dict:
     """
     Upload a time series CSV file and get predictions for test set.
-    
     The CSV file should have a 'point_value' column, and optionally a 'point_timestamp' column.
     """
     try:
-        # Get model selector (will raise HTTPException if models aren't available)
+        logger.info("Received /predict request")
+
+        # Get model selector
         selector = get_model_selector()
-        
+        logger.info("ModelSelector loaded")
+
         # Read the uploaded file
         contents = await file.read()
         df = pd.read_csv(io.StringIO(contents.decode('utf-8')))
-        
-        # Extract the point_value column and convert to numpy array
+        logger.info("CSV file read successfully")
+
+        # Check for required column
         if 'point_value' not in df.columns:
-            raise HTTPException(
-                status_code=400,
-                detail="CSV file must have a 'point_value' column"
-            )
-        
-        # Handle missing values in the data
-        # First, check if there are any missing values
+            logger.warning("Missing 'point_value' column in uploaded CSV")
+            raise HTTPException(status_code=400, detail="CSV file must have a 'point_value' column")
+
+        # Handle missing values
         if df['point_value'].isna().any():
-            print(f"Input data contains {df['point_value'].isna().sum()} missing values out of {len(df)} points")
-            
-            # 1. Forward fill followed by backward fill (handles internal NaNs)
+            logger.info(f"Detected {df['point_value'].isna().sum()} missing values in 'point_value' column")
             df['point_value'] = df['point_value'].fillna(method='ffill').fillna(method='bfill')
-            
-            # 2. If still have NaNs (e.g., at the beginning/end), use interpolation
             if df['point_value'].isna().any():
                 df['point_value'] = df['point_value'].interpolate(method='linear', limit_direction='both')
-            
-            # 3. Last resort: fill any remaining NaNs with the mean
             if df['point_value'].isna().any():
                 mean_value = df['point_value'].mean()
-                if pd.isna(mean_value):  # If mean is also NaN (all values are NaN)
-                    mean_value = 0  # Use 0 as a fallback
+                if pd.isna(mean_value):
+                    mean_value = 0
                 df['point_value'] = df['point_value'].fillna(mean_value)
-        
+            logger.info("Missing values handled")
+
         data = df['point_value'].to_numpy()
-        
-        # Check for timestamps
         has_timestamps = 'point_timestamp' in df.columns
         timestamps = df['point_timestamp'].values if has_timestamps else None
-        
-        # Split data into train and test sets
+
         train_size = int(len(data) * (1 - test_size))
         train_data = data[:train_size]
         test_data = data[train_size:]
         train_timestamps = timestamps[:train_size] if timestamps is not None else None
         test_timestamps = timestamps[train_size:] if timestamps is not None else None
-        
-        # Get model selection and predictions using training data
+        logger.info(f"Data split into train ({len(train_data)}) and test ({len(test_data)})")
+
         best_model_name, predicted_mape = selector.select_model(train_data)
+        logger.info(f"Selected best model: {best_model_name} with predicted MAPE: {predicted_mape}")
         model = selector.get_model(best_model_name)
-        
+
         if model is None:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Could not load model {best_model_name}"
-            )
-        
-        # Train on training data and predict test data
+            logger.error(f"Model {best_model_name} could not be loaded")
+            raise HTTPException(status_code=500, detail=f"Could not load model {best_model_name}")
+
         model.fit(train_data)
+        logger.info(f"Model {best_model_name} trained")
+
         test_predictions = model.predict(len(test_data))
-        
-        # Calculate MAPE on test data
+        logger.info("Test predictions generated")
+
         test_mape = calculate_mape(test_data, test_predictions)
-        
-        # Format data for visualization
+        logger.info(f"Test MAPE: {test_mape}")
+
         train_data_formatted = [
             {
                 "timestamp": str(ts) if has_timestamps else str(i),
@@ -183,7 +179,7 @@ async def predict(file: UploadFile = File(...), test_size: float = 0.2) -> Dict:
             }
             for i, (ts, val) in enumerate(zip(train_timestamps if has_timestamps else range(train_size), train_data))
         ]
-        
+
         test_data_formatted = [
             {
                 "timestamp": str(ts) if has_timestamps else str(i + train_size),
@@ -196,22 +192,19 @@ async def predict(file: UploadFile = File(...), test_size: float = 0.2) -> Dict:
                 test_predictions
             ))
         ]
-        
+
+        logger.info("Formatted train and test data for response")
+
         return {
             "best_model": best_model_name,
             "test_mape": float(test_mape) if test_mape is not None else None,
             "train_data": train_data_formatted,
             "test_data": test_data_formatted
         }
-        
+
     except Exception as e:
-        print(f"Error during prediction: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(
-            status_code=500,
-            detail=str(e)
-        )
+        logger.exception("Exception during prediction")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():
