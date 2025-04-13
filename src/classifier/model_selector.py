@@ -58,14 +58,14 @@ class ModelSelector:
         self.nn_model.load_state_dict(model_data['state_dict'])
         self.nn_model.eval()
         
-        # Load pre-trained forecasting models
-        for model_name in [m.name.lower() for m in ModelFactory.get_all_models()]:
-            model_path = os.path.join(self.models_dir, f"{model_name}_model.joblib")
+        # Load pre-trained forecasting models (excluding Prophet)
+        models_to_load = ['arima', 'exponentialsmoothing', 'simplemovingaverage']
+        for model_name in models_to_load:
             model_filename = f"{model_name}_model.joblib"
             try:
                 model_path = hf_hub_download(
-                    repo_id="SrisharanVS/genies",        # Your Hugging Face username/repository name
-                    filename=model_filename      # File name in the repository
+                    repo_id="SrisharanVS/genies",
+                    filename=model_filename
                 )
                 
                 # Load the model
@@ -74,8 +74,6 @@ class ModelSelector:
 
             except Exception as e:
                 print(f"Error loading model {model_name}: {str(e)}")
-            # if os.path.exists(model_path):
-            #     self.forecasting_models[model_name] = joblib.load(model_path)
     
     def prepare_training_data(self, time_series_data: list, test_size: float = 0.2):
         """
