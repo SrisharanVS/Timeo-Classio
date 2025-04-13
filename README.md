@@ -2,11 +2,11 @@
 
 ## DEMO
 
+https://github.com/user-attachments/assets/e3c219a9-1384-4ac0-af23-5be675f5f166
+
 ![image](https://github.com/user-attachments/assets/677e8245-fd38-4a80-afaf-962fea84c078)
 
 ![image](https://github.com/user-attachments/assets/7e91df0c-d0a1-47c5-b693-5896539e7ec3)
-
-
 
 
 ## How the Classifier Was Trained: My Perspective
