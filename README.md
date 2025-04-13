@@ -1,14 +1,5 @@
 # Time Series Forecasting System
 
-## DEMO
-
-https://github.com/user-attachments/assets/e3c219a9-1384-4ac0-af23-5be675f5f166
-
-![image](https://github.com/user-attachments/assets/677e8245-fd38-4a80-afaf-962fea84c078)
-
-![image](https://github.com/user-attachments/assets/7e91df0c-d0a1-47c5-b693-5896539e7ec3)
-
-
 ## How the Classifier Was Trained: My Perspective
 
 ### The Challenge
@@ -21,12 +12,7 @@ I implemented a comprehensive feature extraction system that captures the essent
 
 1. **Statistical Features**: I used the tsfresh library with MinimalFCParameters to extract statistical features efficiently. This approach balances feature richness with computational performance.
    
-2. **Temporal Features**: I implemented frequency-specific feature extraction that adapts to the data granularity (hourly, daily, weekly, monthly). This includes:
-   - Hourly data: hour of day, business hours indicator
-   - Daily data: day of week, weekend indicator
-   - All frequencies: month, day of month
-
-3. **Data Quality Handling**: I added robust preprocessing to handle missing values through:
+2. **Data Quality Handling**: I added robust preprocessing to handle missing values through:
    - Forward fill and backward fill for internal NaNs
    - Linear interpolation for edge cases
    - Mean imputation as a last resort
@@ -232,7 +218,6 @@ print(response.json())
 
 1. **Feature Extraction**:
    - Statistical features (mean, variance, etc.)
-   - Time series characteristics (trend, seasonality)
    - Data quality metrics
 
 2. **Neural Network Architecture**:
@@ -281,16 +266,7 @@ The classifier uses a comprehensive set of features extracted from time series d
    - Stationarity tests: Augmented Dickey-Fuller test
    - Entropy measures: sample entropy, approximate entropy
 
-2. **Temporal Features**:
-   - Frequency-specific features based on data granularity:
-     - Hourly: hour of day, business hours indicator
-     - Daily: day of week, weekend indicator
-     - Weekly: week of month
-     - Monthly: month, season
-   - Time-based patterns: day of month, quarter, year
-   - Holiday and special day indicators
-
-3. **Data Quality Metrics**:
+2. **Data Quality Metrics**:
    - Missing value ratio
    - Outlier proportion
    - Data completeness
@@ -387,3 +363,10 @@ The classifier's performance is evaluated using:
 - MAPE prediction error
 - Cross-validation scores
 
+## Potential Improvements
+
+1. Incorporate Frequency-Specific Features into the Dataset
+Once frequency-specific features are extracted, they should be included in the dataset (data/dataset.csv) for training and model selection.
+
+2. Use Frequency-Specific Features in Model Selection
+The neural network (MAPEPredictor) should be updated to utilize the new frequency-specific features for better model selection.
